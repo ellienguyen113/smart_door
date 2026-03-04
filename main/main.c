@@ -1,160 +1,182 @@
 #include <stdio.h>
-#include <stdbool.h>
+#include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "driver/gpio.h"
-#include "driver/ledc.h"
-#include "esp_adc/adc_oneshot.h"
+#include "pir.h"
+#include"ldr.h"
+#include "light.h"
+#include "keypad.h"
+#include"buzzer.h"
+#include "servo.h"
 
-// PINS + CONSTANTS
+#define NUM_DOORS 3
+#define LOOP_MS 50
+#define DOOR_OPEN_TIME_MS 2500
+#define PIR_LOCKOUT_MS 1200 //prevent repeated triggers
+#define LDR_DARK_THRESHOLD 1800
+#define PIN_LEN 4
 
-// Inputs
-#define DOOR_OCCUPANCY_PIN   GPIO_NUM_27      // PIR OUT
-#define LIGHT_SENSOR_CH      ADC_CHANNEL_4   
-#define ADC_ATTEN            ADC_ATTEN_DB_12
-#define BITWIDTH             ADC_BITWIDTH_12
+typedef enum{
+    MODE_AUTO=0, 
+    MODE_REMOTE=1, 
+    MODE_KEYPAD=2
+} mode_t;
 
-// Outputs
-#define DOOR_LIGHT_PIN       GPIO_NUM_2
-#define DOOR_SERVO_PIN       5
+//For testing (BLE is not ready)
+static int selected_door = 1;
+static mode_t selected_mode = MODE_AUTO;
 
-#define DARK_THRESHOLD_BITS  2000          
-#define DOOR_OPEN_DELAY_MS   3000
+typedef enum { 
+    CMD_NONE=0, 
+    CMD_OPEN=1, 
+    CMD_CLOSE=2 
+} remote_cmd_t;
+static remote_cmd_t remote_cmd = CMD_NONE;
 
-// SERVO PWM 
+static const char DOOR_PIN[NUM_DOORS][PIN_LEN+1]={
+    "1111",
+    "2222",
+    "3333"
+};
 
-#define SERVO_LEDC_TIMER     LEDC_TIMER_0
-#define SERVO_LEDC_MODE      LEDC_LOW_SPEED_MODE
-#define SERVO_LEDC_CHANNEL   LEDC_CHANNEL_0
-#define SERVO_DUTY_RES       LEDC_TIMER_13_BIT
-#define SERVO_FREQUENCY      50
-#define SERVO_DUTY_CLOSE     230
-#define SERVO_DUTY_OPEN      980
-
-static void servo_ledc_init(void)
-{
-    ledc_timer_config_t tcfg = {
-        .speed_mode       = SERVO_LEDC_MODE,
-        .duty_resolution  = SERVO_DUTY_RES,
-        .timer_num        = SERVO_LEDC_TIMER,
-        .freq_hz          = SERVO_FREQUENCY,
-        .clk_cfg          = LEDC_AUTO_CLK
-    };
-    ledc_timer_config(&tcfg);
-
-    ledc_channel_config_t ccfg = {
-        .speed_mode = SERVO_LEDC_MODE,
-        .channel    = SERVO_LEDC_CHANNEL,
-        .timer_sel  = SERVO_LEDC_TIMER,
-        .intr_type  = LEDC_INTR_DISABLE,
-        .gpio_num   = DOOR_SERVO_PIN,
-        .duty       = 0,
-        .hpoint     = 0
-    };
-    ledc_channel_config(&ccfg);
-}
-
-static void door_open(void)
-{
-    ledc_set_duty(SERVO_LEDC_MODE, SERVO_LEDC_CHANNEL, SERVO_DUTY_OPEN);
-    ledc_update_duty(SERVO_LEDC_MODE, SERVO_LEDC_CHANNEL);
-}
-
-static void door_close(void)
-{
-    ledc_set_duty(SERVO_LEDC_MODE, SERVO_LEDC_CHANNEL, SERVO_DUTY_CLOSE);
-    ledc_update_duty(SERVO_LEDC_MODE, SERVO_LEDC_CHANNEL);
-}
-
-// ADC (photoresistor)
-
-static adc_oneshot_unit_handle_t adc1_handle;
-
-static void light_sensor_adc_init(void)
-{
-    adc_oneshot_unit_init_cfg_t init_config1 = {
-        .unit_id = ADC_UNIT_1,
-    };
-    adc_oneshot_new_unit(&init_config1, &adc1_handle);
-
-    adc_oneshot_chan_cfg_t config = {
-        .atten = ADC_ATTEN,
-        .bitwidth = BITWIDTH
-    };
-    adc_oneshot_config_channel(adc1_handle, LIGHT_SENSOR_CH, &config);
-}
-
-static int light_sensor_read_bits(void)
-{
-    int bits = 0;
-    adc_oneshot_read(adc1_handle, LIGHT_SENSOR_CH, &bits);
-    return bits;
-}
+static int clamp_door(int d){
+    if (d < 1){
+        return 1;
+    } 
+    if (d > NUM_DOORS){
+        return NUM_DOORS;
+    }
+}return d;
 
 static bool is_dark(void)
 {
-    int bits = light_sensor_read_bits();
-    printf("Light ADC bits = %d\n", bits);
+    int raw = ldr_read_raw();
+    return (raw >= LDR_DARK_THRESHOLD);
 }
 
-//PIR interrupt
-static volatile bool person_detected = false;
-static void IRAM_ATTR door_occupancy_isr_handler(void *arg)
+static void update_light (bool door_opened, bool person_nearby)
 {
-    person_detected = true;
+    // If dark AND (person nearby OR door opens) -> light ON
+    if (is_dark() && (door_opened || person_nearby)){
+        light_on();
+    }
+    else {
+        light_off();
+    }
+}
+static void open_then_auto_close(int door)
+{
+    door_open(door);
+    doorbell_sound();  
+
+    update_light(true, true);
+
+    vTaskDelay(pdMS_TO_TICKS(DOOR_OPEN_TIME_MS));
+
+    door_close(door);
+    light_off();
+}
+// Keypad PIN entry
+
+static bool read_pin_from_keypad(char *out_pin /*size PIN_LEN+1*/)
+{
+    int idx = 0;
+    memset(out_pin, 0, PIN_LEN + 1);
+
+    // Collect exactly PIN_LEN digits; '#' submits, '*' clears.
+    while (1) {
+        char k = scan_keypad();
+        if (k == NOPRESS) {
+            vTaskDelay(pdMS_TO_TICKS(LOOP_MS));
+            continue;
+        }
+        if (k == '*') {
+            idx = 0;
+            memset(out_pin, 0, PIN_LEN + 1);
+            alarm_sound(); // feedback optional
+        }
+        else if (k == '#') {
+            if (idx == PIN_LEN) return true;   // PIN ready
+            // not enough digits
+            alarm_sound();
+            idx = 0;
+            memset(out_pin, 0, PIN_LEN + 1);
+        }
+        else if (k >= '0' && k <= '9') {
+            if (idx < PIN_LEN) {
+                out_pin[idx++] = k;
+                // optional tiny beep
+                // doorbell_sound();
+            }
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(LOOP_MS));
+    }
 }
 
 void app_main(void)
 {
-    // Light output
-    gpio_reset_pin(DOOR_LIGHT_PIN);
-    gpio_set_direction(DOOR_LIGHT_PIN, GPIO_MODE_OUTPUT);
-    gpio_set_level(DOOR_LIGHT_PIN, 0);
+    // Init modules
+    pir_init();
+    init_keypad();
+    buzzer_init();
+    light_init();
 
-    // Servo init
-    servo_ledc_init();
-    door_close();
+    // LDR init
+    ldr_init(ADC_CHANNEL_2);
 
-    // ADC init
-    light_sensor_adc_init();
+    // Multi-door servo init
+    servo_init_all();
 
-    // PIR setup
-    gpio_reset_pin(DOOR_OCCUPANCY_PIN);
-    gpio_set_direction(DOOR_OCCUPANCY_PIN, GPIO_MODE_INPUT);
-    gpio_pullup_dis(DOOR_OCCUPANCY_PIN);
-    gpio_pulldown_dis(DOOR_OCCUPANCY_PIN);
-
-    gpio_set_intr_type(DOOR_OCCUPANCY_PIN, GPIO_INTR_POSEDGE);
-    gpio_install_isr_service(0);
-    gpio_isr_handler_add(DOOR_OCCUPANCY_PIN, door_occupancy_isr_handler, NULL);
-    gpio_intr_enable(DOOR_OCCUPANCY_PIN);
-
-    bool door_is_busy = false;
+    // Safe startup state
+    for (int d = 1; d <= NUM_DOORS; d++) {
+        door_close(d);
+    }light_off();
+    
+    char entered[PIN_LEN + 1];
 
     while (1) {
+        int door = clamp_door(selected_door);
 
-        if (person_detected && !door_is_busy) {
-
-            person_detected = false;
-            door_is_busy = true;
-
-            //1) Open door
-            door_open();
-
-            //2) Check ambient light
-            if (is_dark()) {
-                gpio_set_level(DOOR_LIGHT_PIN, 1);
+        if (selected_mode == MODE_AUTO) {
+            // PIR controls opening
+            if (pir_read()) {
+                open_then_close(door, true);
+                vTaskDelay(pdMS_TO_TICKS(PIR_LOCKOUT_MS));
             } else {
-                gpio_set_level(DOOR_LIGHT_PIN, 0);
+                light_off();
             }
-            // 3) Wait
-            vTaskDelay(pdMS_TO_TICKS(DOOR_OPEN_DELAY_MS));
-            // 4) Close door
-            door_close();
-            // 5) Light OFF when door closes
-            gpio_set_level(DOOR_LIGHT_PIN, 0);
-            door_is_busy = false;
         }
-        vTaskDelay(pdMS_TO_TICKS(10));
+
+        else if (selected_mode == MODE_REMOTE) {
+            // Simulate remote open/close commands
+            if (remote_cmd == CMD_OPEN) {
+                door_open(door);
+                doorbell_sound();
+                update_light(true, false);
+                remote_cmd = CMD_NONE;
+            }
+            else if (remote_cmd == CMD_CLOSE) {
+                door_close(door);
+                light_off();
+                remote_cmd = CMD_NONE;
+            }
+        }
+
+        else if (selected_mode == MODE_KEYPAD) {
+            // Keypad only for PIN (door selection done elsewhere)
+            bool got_pin = read_pin_from_keypad(entered);
+            if (got_pin) {
+                if (strcmp(entered, DOOR_PIN[door - 1]) == 0) {
+                    open_then_close(door, false);
+                } else {
+                    alarm_sound();
+                    door_close(door);
+                    light_off();
+                }
+            }
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(LOOP_MS));
     }
 }
