@@ -28,6 +28,6 @@ void ldr_init(adc_channel_t channel)
 int ldr_read_raw(void)
 {
     int raw = 0;
-    ESP_ERROR_CHECK(adc_oneshot_read(adc1_handle, ldr_channel, &raw));
+    (adc_oneshot_read(adc1_handle, ldr_channel, &raw));
     return raw;
 }

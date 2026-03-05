@@ -1,4 +1,5 @@
-idf_component_register(SRCS "light.c" "main.c"
+idf_component_register(SRCS "main.c"
+                            "light.c"
                             "pir.c"
                             "buzzer.c"
                             "keypad.c"
