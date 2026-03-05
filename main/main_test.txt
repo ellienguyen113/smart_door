@@ -1,0 +1,74 @@
+
+#include <stdio.h>
+#include <string.h>
+
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
+#include "pir.h"
+#include "ldr.h"
+#include "light.h"
+#include "buzzer.h"
+#include "servo.h"
+
+#define LOOP_MS             50
+#define DOOR_OPEN_TIME_MS   2500
+#define LOCKOUT_MS          1200
+#define LDR_DARK_THRESHOLD  1200
+
+static bool is_dark(void)
+{
+    int raw = ldr_read_raw();
+    return (raw >= LDR_DARK_THRESHOLD);
+}
+
+static void update_light(bool door_opened, bool person_nearby)
+{
+    if (is_dark() && (door_opened || person_nearby)) {
+        light_on();
+    } else {
+        light_off();
+    }
+}
+
+static void open_then_auto_close(void)
+{
+    door_open();
+    doorbell_sound();
+
+    // door is opened -> light decision
+    update_light(true, true);
+
+    vTaskDelay(pdMS_TO_TICKS(DOOR_OPEN_TIME_MS));
+
+    door_close();
+    light_off();
+}
+
+void app_main(void)
+{
+    // Init hardware modules
+    pir_init();
+    buzzer_init();
+    light_init();
+    ldr_init(ADC_CHANNEL_2);
+    servo_init();
+
+    // Safe startup state
+    door_close();
+    light_off();
+
+    while (1) {
+        int motion = pir_read();
+
+        // Light can follow motion (only if dark)
+        update_light(false, motion);
+
+        if (motion) {
+            open_then_auto_close();
+            vTaskDelay(pdMS_TO_TICKS(LOCKOUT_MS));
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(LOOP_MS));
+    }
+}

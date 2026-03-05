@@ -1,6 +1,7 @@
 #include "driver/gpio.h"
+#include "freertos/FreeRTOS.h"
 
-#define LIGHT_GPIO GPIO_NUM_19
+#define LIGHT_GPIO GPIO_NUM_12
 
 void light_init(void)
 {

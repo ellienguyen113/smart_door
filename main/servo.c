@@ -5,7 +5,7 @@
 
 #define SERVO_TIMER        LEDC_TIMER_0
 #define SERVO_MODE         LEDC_LOW_SPEED_MODE
-#define SERVO_GPIO         5
+#define SERVO_GPIO         2
 #define SERVO_CHANNEL      LEDC_CHANNEL_0
 #define SERVO_DUTY_RES     LEDC_TIMER_13_BIT
 #define SERVO_FREQUENCY    50
@@ -37,13 +37,13 @@ void servo_init(void)
     ESP_ERROR_CHECK(ledc_channel_config(&servo_channel));
 }
 
-void door_open(void)
+void door_open()
 {
     ledc_set_duty(SERVO_MODE, SERVO_CHANNEL, DUTY_OPEN_DOOR);
     ledc_update_duty(SERVO_MODE, SERVO_CHANNEL);
 }
 
-void door_close(void)
+void door_close()
 {
     ledc_set_duty(SERVO_MODE, SERVO_CHANNEL, DUTY_CLOSE_DOOR);
     ledc_update_duty(SERVO_MODE, SERVO_CHANNEL);

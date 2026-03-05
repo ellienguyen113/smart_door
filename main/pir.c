@@ -1,7 +1,7 @@
 #include "pir.h"
 #include "driver/gpio.h"
 
-#define PIR_GPIO GPIO_NUM_4
+#define PIR_GPIO GPIO_NUM_5
 
 void pir_init(void)
 {
