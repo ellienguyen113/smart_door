@@ -48,7 +48,7 @@ char scan_keypad() {
     return key_pressed;
 }
 
-void app_main() {
+void keypad_task() {
     char new_key, last_key = NOPRESS; //variables in FSM
     bool timed_out = false; //waiting for debounce
     int time = 0; //To count up to debounce time

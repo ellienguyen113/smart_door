@@ -8,6 +8,7 @@
 #include "keypad.h"
 #include"buzzer.h"
 #include "servo.h"
+#include "bluetooth.h"
 
 #define NUM_DOORS 3
 #define LOOP_MS 50
