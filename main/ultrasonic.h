@@ -8,12 +8,12 @@
 #define ECHO_PIN GPIO_NUM_12
 
 // Function Prototypes
-/**
+/*
  * @brief Initializes the GPIOs, Interrupts, and Hardware Timers for the sensor.
  */
 void hc_sr04_init(void);
 
-/**
+/*
  * @brief Triggers a measurement and returns the distance in centimeters.
  * @return float Distance in cm. Returns -1.0 if out of range or error.
  */
