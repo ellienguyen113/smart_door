@@ -39,15 +39,5 @@ void app_main(void)
 
     vTaskDelay(pdMS_TO_TICKS(1000));
 
-    // 5. CAUTION TEST: Overlapping without Mutex
-    // Since you aren't using a mutex, calling these back-to-back 
-    // will cause them to overlap and sound messy.
-    printf("\n4. CAUTION: Testing overlap (No Mutex)...\n");
-    printf("Expect garbled sound because tasks will fight for hardware!\n");
-    buzzer_play_success_async();
-    vTaskDelay(pdMS_TO_TICKS(50)); // Tiny delay
-    buzzer_play_failure_async();
-
-    printf("\n--- Buzzer Test Complete ---\n");
 }
 

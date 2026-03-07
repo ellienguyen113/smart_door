@@ -1,11 +1,9 @@
-#ifndef HC_SR04_H
-#define HC_SR04_H
-
+#pragma once
 #include "driver/gpio.h"
 
 // Define Pins
-#define TRIG_PIN GPIO_NUM_11
-#define ECHO_PIN GPIO_NUM_12
+#define TRIG_PIN GPIO_NUM_12
+#define ECHO_PIN GPIO_NUM_13
 
 // Function Prototypes
 /*
@@ -18,5 +16,3 @@ void hc_sr04_init(void);
  * @return float Distance in cm. Returns -1.0 if out of range or error.
  */
 float hc_sr04_get_distance_cm(void);
-
-#endif // HC_SR04_H
