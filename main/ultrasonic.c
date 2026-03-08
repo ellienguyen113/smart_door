@@ -2,7 +2,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_timer.h"
-#include "hc_sr04.h"
+#include "ultrasonic.h"
 
 // Internal Global Variables (Static limits them to this file)
 static esp_timer_handle_t oneshot_timer;

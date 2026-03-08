@@ -1,5 +1,6 @@
 #include "keypad.h"
 #include "driver/gpio.h"
+#include <string.h>
 #include "freertos/FreeRTOS.h"
 
 #define LOOP_DELAY_MS           10      // Loop sampling time (ms)
@@ -47,6 +48,11 @@ char scan_keypad() {
     }
     return key_pressed;
 }
+typedef enum {
+    WAIT_FOR_PRESS,
+    DEBOUNCE,
+    WAIT_FOR_RELEASE
+} State_t;
 
 void keypad_task() {
     char new_key, last_key = NOPRESS; //variables in FSM
@@ -66,37 +72,35 @@ void keypad_task() {
         if (time > DEBOUNCE_TIME) timed_out = true;
              else timed_out = false;
 
-        switch(state) {
-            case WAIT_FOR_PRESS: 
-                if (new_key != NOPRESS) {
-                    state = DEBOUNCE;
-                    time = 0; 
-                    last_key = new_key;
-                }
-                break;
-            
-            case DEBOUNCE: 
-                if (!timed_out) {
-                    time = time + LOOP_DELAY_MS;
-                } else {
-                    if ((new_key != last_key)){
-                        state = WAIT_FOR_PRESS;
-                    } else {
-                        state = WAIT_FOR_RELEASE;
-                    }
-                }
-                break;
-            
-            case WAIT_FOR_RELEASE:
-                if (new_key == NOPRESS) {
-                    state = printf("Key pressed: %c \n", last_key);
-                }
-                break;
-            
-            default:
-                state = WAIT_FOR_PRESS;
-                break;
+    char current_key = scan_keypad();
+    
+    switch(state){
+        case WAIT_FOR_PRESS:
+        if (current_key != NOPRESS){
+            last_key = current_key;
+            time_ms = 0;
+            state = DEBOUNCE;
         }
-        vTaskDelay(LOOP_DELAY_MS/ portTICK_PERIOD_MS);
+        break;
+        
+        case DEBOUNCE:
+        time_ms += LOOP_DELAY_MS;
+        if (time_ms >= DEBOUNCE_TIME){
+            if (current_key == last_key){
+                state = WAIT_FOR_RELEASE;
+            }
+            else{
+                state = WAIT_FOR_PRESS;
+            }
+        }
+        break;
+
+        case WAIT_FOR_RELEASE:
+        if(current_key == NOPRESS){
+            state = WAIT_FOR_PRESS;
+            return last_key;
+        }
+        break;
     }
+    return NOPRESS;
 }
