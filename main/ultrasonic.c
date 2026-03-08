@@ -27,6 +27,7 @@ static void IRAM_ATTR echo_isr_handler(void* arg) {
 }
 
 void ultrasonic_init(void) {
+
     // 1. Configure Trigger Pin
     gpio_reset_pin(TRIG_PIN);
     gpio_set_direction(TRIG_PIN, GPIO_MODE_OUTPUT);
@@ -48,6 +49,7 @@ void ultrasonic_init(void) {
     };
     esp_timer_create(&oneshot_timer_args, &oneshot_timer);
 }
+
 
 float ultrasonic_get_distance_cm(void) {
     // Send 10us trigger pulse

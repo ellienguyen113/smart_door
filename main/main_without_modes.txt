@@ -1,0 +1,81 @@
+
+#include <stdio.h>
+#include <string.h>
+
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
+#include "ultrasonic.h"
+#include "ldr.h"
+#include "light.h"
+#include "buzzer.h"
+#include "servo.h"
+
+#define LOOP_MS             50
+#define DOOR_OPEN_TIME_MS   2500
+#define LOCKOUT_MS          1200
+#define LDR_DARK_THRESHOLD  1800
+#define DISTANCE_THRESHOLD  100
+
+static bool is_dark(void)
+{
+    int raw = ldr_read_raw();
+    return (raw >= LDR_DARK_THRESHOLD);
+}
+
+static void update_light(bool door_opened, bool person_nearby)
+{
+    if (is_dark() && (door_opened || person_nearby)) {
+        light_on();
+    } else {
+        light_off();
+    }
+}
+
+static void open_then_auto_close(void)
+{
+    door_open();
+    doorbell_sound();
+
+    // door is opened -> light decision
+    update_light(true, true);
+
+    vTaskDelay(pdMS_TO_TICKS(DOOR_OPEN_TIME_MS));
+
+    door_close();
+    light_off();
+}
+
+void app_main(void)
+{
+    // Init hardware modules
+    hc_sr04_init();
+    buzzer_init();
+    light_init();
+    ldr_init(ADC_CHANNEL_2);
+    servo_init();
+
+    // Safe startup state
+    door_close();
+    light_off();
+
+    while (1) {
+        // Get the actual distance
+        float distance = hc_sr04_get_distance_cm();
+
+        // Logic check: Is someone within 1 meter?
+        // Note: -1.0 means out of range or sensor error
+        bool person_detected = (distance > 0 && distance <= DISTANCE_THRESHOLD);
+
+        // Light follows person detection (only if dark)
+        update_light(false, person_detected);
+
+        if (person_detected) {
+            printf("Person at %.2f cm. Opening door!\n", distance);
+            open_then_auto_close();
+            vTaskDelay(pdMS_TO_TICKS(LOCKOUT_MS));
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(LOOP_MS));
+    }
+}

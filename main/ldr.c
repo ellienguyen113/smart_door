@@ -1,3 +1,4 @@
+
 #include "ldr.h"
 #include "esp_adc/adc_oneshot.h"
 #include "esp_err.h"
@@ -5,9 +6,6 @@
 #define ADC_ATTEN     ADC_ATTEN_DB_12
 #define BITWIDTH      ADC_BITWIDTH_12
 
-// Define the threshold here. 
-// Values below this will be considered "Dark". 
-// You might need to tune this (try 1000 to 2000).
 #define LDR_DARK_THRESHOLD 1500 
 
 static adc_oneshot_unit_handle_t adc1_handle;
