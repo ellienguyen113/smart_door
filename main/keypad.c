@@ -54,10 +54,23 @@ typedef enum {
     WAIT_FOR_RELEASE
 } State_t;
 
-char get_key_buffered(void){
-    static State_t state = WAIT_FOR_PRESS;
-    static char last_key = NOPRESS;
-    static int time_ms = 0;
+void keypad_task() {
+    char new_key, last_key = NOPRESS; //variables in FSM
+    bool timed_out = false; //waiting for debounce
+    int time = 0; //To count up to debounce time
+    typedef enum {
+        WAIT_FOR_PRESS,
+        DEBOUNCE,
+        WAIT_FOR_RELEASE
+    } State_t;
+    State_t state = WAIT_FOR_PRESS; //Initial state of FSN
+    init_keypad();
+    
+    while(1) {
+        new_key = scan_keypad(); 
+
+        if (time > DEBOUNCE_TIME) timed_out = true;
+             else timed_out = false;
 
     char current_key = scan_keypad();
     

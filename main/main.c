@@ -5,6 +5,13 @@
 #include "esp_adc/adc_oneshot.h"
 #include "driver/ledc.h"
 #include "esp_err.h"
+#include "pir.h"
+#include"ldr.h"
+#include "light.h"
+#include "keypad.h"
+#include"buzzer.h"
+#include "servo.h"
+#include "bluetooth.h"
 
 void app_main(void)
 {
