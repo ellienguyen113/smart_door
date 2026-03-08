@@ -11,7 +11,8 @@
 #include "ldr.h"
 #include "light.h"
 
-#define MODE_SWITCH_GPIO   GPIO_NUM_5   // Physical switch to toggle modes
+//adjust mode
+#define MODE_SWITCH_GPIO   GPIO_NUM_5   
 char input_buffer[4] = {0, 0, 0, 0}; 
 int input_count = 0;
 char MASTER_PASSWORD[4] = {'7', '8', '9', '9'}; // The PIN

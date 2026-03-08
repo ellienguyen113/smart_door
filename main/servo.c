@@ -9,7 +9,6 @@
 #define SERVO_DUTY_RES     LEDC_TIMER_13_BIT
 #define SERVO_FREQUENCY    50
 
-// These depend on your servo + calibration:
 #define DUTY_CLOSE_DOOR    230
 #define DUTY_OPEN_DOOR     980
 
