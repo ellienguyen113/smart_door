@@ -4,7 +4,6 @@
 #include "freertos/task.h"
 #include "driver/gpio.h"
 
-// Component APIs
 #include "buzzer.h"
 #include "keypad.h"
 #include "ultrasonic.h"
@@ -12,7 +11,6 @@
 #include "ldr.h"
 #include "light.h"
 
-// --- SETTINGS ---
 #define MODE_SWITCH_GPIO   GPIO_NUM_5   // Physical switch to toggle modes
 char input_buffer[4] = {0, 0, 0, 0}; 
 int input_count = 0;
@@ -60,7 +58,7 @@ void app_main(void) {
         int mode_select = gpio_get_level(MODE_SWITCH_GPIO);
 
         if (mode_select == 1) {
-            // --- MODE 1: AUTO MODE (Ultrasonic) ---
+            //MODE 1: AUTO MODE (Ultrasonic)
             if (ultrasonic_get_distance_cm() < 30.0) {
                 run_door_flow();
                 
@@ -89,7 +87,7 @@ void app_main(void) {
                     if (input_count == 4) {
                         printf("DEBUG: Buffer is [%c%c%c%c]\n", 
                                input_buffer[0], input_buffer[1], input_buffer[2], input_buffer[3]);
-                               
+
                         if (memcmp(input_buffer, MASTER_PASSWORD, 4) == 0) {
                             printf("Access Granted!\n");
                             run_door_flow();
