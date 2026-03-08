@@ -23,6 +23,23 @@
 #include "esp_gatt_common_api.h"
 #include "led.h"
 
+typedef enum{
+    MODE_AUTO=0, 
+    MODE_REMOTE=1, 
+    MODE_KEYPAD=2
+} mode_t;
+
+//For testing (BLE is not ready)
+int selected_door = 1;
+mode_t selected_mode = MODE_AUTO;
+
+typedef enum { 
+    CMD_NONE=0, 
+    CMD_OPEN=1, 
+    CMD_CLOSE=2 
+} remote_cmd_t;
+remote_cmd_t remote_cmd = CMD_NONE;
+
 #define PROFILE_NUM 1
 #define AUTO_IO_PROFILE_APP_ID 0
 #define AUTO_IO_SVC_UUID 0x1815
@@ -208,16 +225,56 @@ static void auto_io_gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_
         if (param->write.value[0]) {
             ESP_LOGI(GATTS_TAG, "LED ON!");
             led_on();
-            gpio_set_level(BUZZER, 1);
-            printf("LED ON message!\n");
-printf("Received value: %d\n", param->write.value[0]);       
+            //gpio_set_level(BUZZER, 1);
+            int sent = param->write.value[0];
+            printf("Received value: %d\n", sent);
+            switch (sent) {
+    case 1:
+printf("Door 1\n");
+selected_door = 1;
+        break;
+    case 2:
+printf("Door 2\n");
+selected_door = 2;        
+break;
+    case 3:
+printf("Door 3\n");
+selected_door = 3;
+        break;
+    case 4:
+printf("AUTO\n");
+selected_mode = MODE_AUTO;        
+break;
+    case 5:
+printf("REMOTE\n");
+selected_mode = MODE_REMOTE;  
+        break;
+    case 6:
+printf("KEYPAD\n");
+selected_mode = MODE_KEYPAD;  
+        break;
+    case 7:
+printf("OPEN\n");
+remote_cmd = CMD_OPEN;
+        break;
+    case 8:
+printf("CLOSE\n");
+remote_cmd = CMD_CLOSE;
+        break;
+    case 9:
+        // code to execute
+        break;
+    default:
+        // code to execute if expression doesn't match any case
+        break;
+}     
  } 
 
 else {
             ESP_LOGI(GATTS_TAG, "LED OFF!");
             led_off();
-            gpio_set_level(BUZZER, 0);
-            printf("LED OFF message!\n");
+            //gpio_set_level(BUZZER, 0);
+            printf("Zero!\n");
         }
         example_write_event_env(gatts_if, param);
         break;
